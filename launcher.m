@@ -24,7 +24,7 @@ int main(void) {
     @autoreleasepool {
         NSBundle *bundle = NSBundle.mainBundle;
         NSURL *java = [bundle.builtInPlugInsURL
-            URLByAppendingPathComponent:@"ZuluJRE.jre/Contents/Home/bin/java"];
+            URLByAppendingPathComponent:@"JavaRuntime.jre/Contents/Home/bin/java"];
         NSURL *jar = [bundle URLForResource:@"HMCL" withExtension:@"jar"];
         NSURL *icon = [bundle URLForResource:@"HMCL" withExtension:@"icns"];
         NSURL *update = [bundle URLForResource:@"update" withExtension:@"json"];

@@ -26,8 +26,8 @@ if head=$(git -C "$project_dir" rev-parse --verify HEAD 2>/dev/null) &&
 fi
 
 if $release; then
-    [[ $zulu_source_url == https://* && $zulu_source_sha256 =~ ^[0-9a-f]{64}$ ]] ||
-        fail '公开发布需要在 release.env 中锁定对应的 Zulu OpenJDK 和 OpenJFX 源码归档。'
+    [[ $runtime_source_url == https://* && $runtime_source_sha256 =~ ^[0-9a-f]{64}$ ]] ||
+        fail '公开发布需要在 release.env 中锁定对应的 OpenJDK 和 OpenJFX 源码归档。'
     tagged_commit=$(git -C "$project_dir" rev-parse --verify "refs/tags/$tag^{commit}" 2>/dev/null) ||
         fail "找不到发布标签 $tag。"
     [[ $commit == "\"$tagged_commit\"" ]] || fail "请从标签 $tag 对应的干净工作区打包。"
@@ -59,12 +59,12 @@ stage=$(mktemp -d "$dist/.package.XXXXXXXX")
 assets=("$name.dmg" "$name.zip" release.json)
 if $release; then
     hmcl_source="HMCL-$hmcl_version-sources.tar.gz"
-    zulu_source="Zulu-$zulu_version-sources.tar.gz"
+    runtime_source="Liberica-${runtime_version//+/-b}-sources.tar.gz"
     download "$hmcl_source_url" "$stage/$hmcl_source" "$hmcl_source_sha256"
-    download "$zulu_source_url" "$stage/$zulu_source" "$zulu_source_sha256"
+    download "$runtime_source_url" "$stage/$runtime_source" "$runtime_source_sha256"
     tar -tzf "$stage/$hmcl_source" > /dev/null
-    tar -tzf "$stage/$zulu_source" > /dev/null
-    assets+=("$hmcl_source" "$zulu_source")
+    tar -tzf "$stage/$runtime_source" > /dev/null
+    assets+=("$hmcl_source" "$runtime_source")
 fi
 
 "$project_dir/build.sh"
@@ -91,7 +91,8 @@ cat > "$stage/release.json" <<EOF
     "tag": "$tag",
     "commit": $commit,
     "hmcl_version": "$hmcl_version",
-    "zulu_version": "$zulu_version",
+    "runtime_vendor": "$runtime_vendor",
+    "runtime_version": "$runtime_version",
     "java_version": "$java_version",
     "javafx_version": "$javafx_version",
     "architecture": "arm64",

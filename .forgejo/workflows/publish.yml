@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   mirror:
+    if: ${{ forgejo.repository == 'gulugulu/hmcl-app' }}
     runs-on: ${{ vars.HMCL_PUBLISH_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 40
     env:

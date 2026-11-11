@@ -13,6 +13,7 @@ github_repo=${GITHUB_RELEASE_REPO:-ClarkQAQ/hmcl-app}
 forgejo_url=${FORGEJO_SERVER_URL:?需要 FORGEJO_SERVER_URL}
 forgejo_owner=${FORGEJO_REPOSITORY_OWNER:?需要 FORGEJO_REPOSITORY_OWNER}
 token=${FORGEJO_PACKAGE_TOKEN:?请配置 Actions Secret HMCL_PACKAGE_TOKEN}
+forgejo_auth="Authorization: token $token"
 
 [[ $tag =~ ^v[0-9]+(\.[0-9]+){2}-r[1-9][0-9]*$ ]] || fail '标签必须使用 vX.Y.Z-rN 格式。'
 [[ $github_repo =~ ^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$ ]] || fail 'GitHub 仓库必须使用 owner/repo 格式。'
@@ -26,9 +27,9 @@ cd "$project_dir"
 # shellcheck source=../release.env
 source ./release.env
 
-[[ $zulu_version =~ ^[0-9]+(\.[0-9]+)+$ ]] || fail 'release.env 的 Zulu 版本格式无效。'
-[[ $hmcl_source_sha256 =~ ^[0-9a-f]{64}$ && $zulu_source_sha256 =~ ^[0-9a-f]{64}$ ]] ||
-    fail 'release.env 必须锁定 HMCL 和 Zulu 源码归档的 SHA-256。'
+[[ $runtime_version =~ ^[0-9]+(\.[0-9]+)+\+[0-9]+$ ]] || fail 'release.env 的 Liberica 版本格式无效。'
+[[ $hmcl_source_sha256 =~ ^[0-9a-f]{64}$ && $runtime_source_sha256 =~ ^[0-9a-f]{64}$ ]] ||
+    fail 'release.env 必须锁定 HMCL 和 Liberica 源码归档的 SHA-256。'
 version="${hmcl_version}-r${revision}"
 [[ $tag == "v$version" ]] || fail "Forgejo 标签 $tag 与 release.env 不一致，应为 v$version。"
 tag_ref="refs/tags/$tag"
@@ -38,8 +39,8 @@ tag_commit=$(git rev-parse --verify "$tag_ref^{commit}")
 
 artifact="HMCL-macOS-${version}-arm64"
 hmcl_source="HMCL-$hmcl_version-sources.tar.gz"
-zulu_source="Zulu-$zulu_version-sources.tar.gz"
-payload_files=("$artifact.dmg" "$artifact.zip" "$hmcl_source" "$zulu_source" release.json)
+runtime_source="Liberica-${runtime_version//+/-b}-sources.tar.gz"
+payload_files=("$artifact.dmg" "$artifact.zip" "$hmcl_source" "$runtime_source" release.json)
 files=("${payload_files[@]}" SHA256SUMS)
 expected_assets=$(jq -n --args '$ARGS.positional' "${files[@]}")
 
@@ -94,8 +95,10 @@ for file in "${files[@]}"; do
 done
 
 jq -e --arg tag "$tag" --arg commit "$commit" --arg hmcl "$hmcl_version" \
-    --arg zulu "$zulu_version" --arg java "$java_version" --arg javafx "$javafx_version" '
-    .tag == $tag and .commit == $commit and .hmcl_version == $hmcl and .zulu_version == $zulu
+    --arg runtime_vendor "$runtime_vendor" --arg runtime_version "$runtime_version" \
+    --arg java "$java_version" --arg javafx "$javafx_version" '
+    .tag == $tag and .commit == $commit and .hmcl_version == $hmcl
+    and .runtime_vendor == $runtime_vendor and .runtime_version == $runtime_version
     and .java_version == $java and .javafx_version == $javafx and .architecture == "arm64"
     and .signing == "ad-hoc"
 ' release.json >/dev/null || fail 'release.json 与当前标签、提交或 release.env 不一致。'
@@ -105,8 +108,8 @@ cmp -s <(sort calculated-checksums) <(sort SHA256SUMS) ||
     fail 'SHA256SUMS 与发布文件不一致。'
 grep -Fxq "$hmcl_source_sha256  $hmcl_source" calculated-checksums ||
     fail 'HMCL 源码归档的 SHA-256 与 release.env 不一致。'
-grep -Fxq "$zulu_source_sha256  $zulu_source" calculated-checksums ||
-    fail 'Zulu 源码归档的 SHA-256 与 release.env 不一致。'
+grep -Fxq "$runtime_source_sha256  $runtime_source" calculated-checksums ||
+    fail 'Liberica 源码归档的 SHA-256 与 release.env 不一致。'
 shasum -a 256 SHA256SUMS >> calculated-checksums
 
 package_path="$forgejo_owner/generic/hmcl-app/$version"
@@ -116,7 +119,7 @@ package_upload="${forgejo_url%/}/api/packages/$package_path"
 read_package_files() {
     local status
     status=$(https_curl --max-time 30 --output package-files.json --write-out '%{http_code}' \
-        --header "Authorization: token $token" "$package_api")
+        --header @- "$package_api" <<< "$forgejo_auth")
     case "$status" in
         200) jq -e 'type == "array" and all(.[]; (.sha256 | test("^[0-9a-f]{64}$")))' \
                 package-files.json >/dev/null || fail 'Forgejo 返回的文件摘要无效。' ;;
@@ -148,7 +151,7 @@ while read -r expected_hash file; do
 
     printf '上传 %s。\n' "$file"
     status=$(https_curl --max-time 600 --output upload-response --write-out '%{http_code}' \
-        --user "$forgejo_owner:$token" --upload-file "$file" "$package_upload/$file")
+        --header @- --upload-file "$file" "$package_upload/$file" <<< "$forgejo_auth")
     case "$status" in
         201) ;;
         409)

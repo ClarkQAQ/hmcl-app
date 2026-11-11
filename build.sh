@@ -20,23 +20,44 @@ app="$stage/HMCL.app"
 contents="$app/Contents"
 resources="$contents/Resources"
 launcher="$contents/MacOS/HMCL"
-runtime="$contents/PlugIns/ZuluJRE.jre"
+runtime="$contents/$runtime_bundle"
+runtime_contents="$runtime/Contents"
+runtime_home="$runtime_contents/Home"
 jar="$resources/HMCL.jar"
 
-mkdir -p "$contents/MacOS" "$resources/Licenses" "$runtime"
+mkdir -p "$contents/MacOS" "$resources/Licenses" "$runtime_contents/MacOS" "$runtime_home"
 xcrun --sdk macosx clang -arch arm64 -mmacosx-version-min=11.0 -O2 -fobjc-arc -Wall -Wextra \
     -framework Foundation -framework AppKit "$project_dir/launcher.m" -o "$launcher"
 xcrun --sdk macosx clang -arch arm64 -O2 -Wall -Wextra "$project_dir/publish-app.c" -o "$stage/publish-app"
 
 download "$hmcl_url" "$jar" "$hmcl_sha256"
-download "$zulu_url" "$stage/zulu.tar.gz" "$zulu_sha256"
-tar -xzf "$stage/zulu.tar.gz" --strip-components 1 -C "$runtime"
+download "$runtime_url" "$stage/runtime.tar.gz" "$runtime_sha256"
+tar -xzf "$stage/runtime.tar.gz" --strip-components 1 -C "$runtime_home"
+[[ -s "$runtime_home/LICENSE" && -d "$runtime_home/legal" ]] || fail 'Java 运行时许可证缺失。'
+cp "$runtime_home/lib/libjli.dylib" "$runtime_contents/MacOS/libjli.dylib"
 download "$hmcl_license_url" "$resources/Licenses/HMCL-LICENSE.txt" "$hmcl_license_sha256"
 download "$hmcl_terms_url" "$stage/hmcl-readme.md" "$hmcl_terms_sha256"
 awk '/^## 开源协议[[:space:]]*$/ { terms = 1 }
     terms && /^## / && !/^## 开源协议[[:space:]]*$/ { exit }
     terms { print }' "$stage/hmcl-readme.md" > "$resources/Licenses/HMCL-Additional-Terms.md"
 [[ -s "$resources/Licenses/HMCL-Additional-Terms.md" ]] || fail 'HMCL 附加条款缺失。'
+
+cat > "$runtime_contents/Info.plist" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>local.hmcl.app.runtime</string>
+    <key>CFBundleName</key>
+    <string>Java Runtime</string>
+    <key>CFBundleExecutable</key>
+    <string>libjli.dylib</string>
+    <key>CFBundlePackageType</key>
+    <string>BNDL</string>
+</dict>
+</plist>
+PLIST
 
 cat > "$contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -88,6 +109,7 @@ for size in 16 32 128 256 512; do
 done
 iconutil -c icns -o "$resources/HMCL.icns" "$iconset"
 
+codesign --force --sign - "$runtime"
 codesign --sign - "$app"
 verify_app "$app"
 "$stage/publish-app" "$app" "$dist/HMCL.app"

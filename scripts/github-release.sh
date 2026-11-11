@@ -19,9 +19,9 @@ api="repos/$repository"
 marker="<!-- hmcl-app release commit: $commit -->"
 archive="HMCL-macOS-${hmcl_version}-r${revision}-arm64"
 hmcl_source="HMCL-${hmcl_version}-sources.tar.gz"
-zulu_source="Zulu-${zulu_version}-sources.tar.gz"
+runtime_source="Liberica-${runtime_version//+/-b}-sources.tar.gz"
 payloads=("$archive.dmg" "$archive.zip" release.json
-    "$hmcl_source" "$zulu_source")
+    "$hmcl_source" "$runtime_source")
 assets=("${payloads[@]}" SHA256SUMS)
 asset_names=$(printf '%s\n' "${assets[@]}" | LC_ALL=C sort)
 state=$(mktemp -d)
@@ -47,9 +47,11 @@ find_release() {
 
 verify_manifest() {
     jq -e --arg tag "$tag" --arg commit "$commit" --arg hmcl "$hmcl_version" \
-        --arg zulu "$zulu_version" --arg java "$java_version" --arg javafx "$javafx_version" '
+        --arg vendor "$runtime_vendor" --arg runtime "$runtime_version" \
+        --arg java "$java_version" --arg javafx "$javafx_version" '
         .tag == $tag and .commit == $commit and .hmcl_version == $hmcl and
-        .zulu_version == $zulu and .java_version == $java and .javafx_version == $javafx and
+        .runtime_vendor == $vendor and .runtime_version == $runtime and
+        .java_version == $java and .javafx_version == $javafx and
         .architecture == "arm64" and .signing == "ad-hoc"' "$1" >/dev/null
 }
 
@@ -58,10 +60,10 @@ verify_remote_assets() {
     [[ $(jq -r '.[].name' <<< "$remote" | LC_ALL=C sort) == "$asset_names" ]] || return 1
     jq -e 'all(.[]; .state == "uploaded" and (.digest // "" | test("^sha256:[0-9a-f]{64}$")))' \
         <<< "$remote" >/dev/null || return 1
-    jq -e --arg hmcl "$hmcl_source" --arg zulu "$zulu_source" \
-        --arg hmcl_digest "sha256:$hmcl_source_sha256" --arg zulu_digest "sha256:$zulu_source_sha256" '
+    jq -e --arg hmcl "$hmcl_source" --arg runtime "$runtime_source" \
+        --arg hmcl_digest "sha256:$hmcl_source_sha256" --arg runtime_digest "sha256:$runtime_source_sha256" '
         any(.[]; .name == $hmcl and .digest == $hmcl_digest) and
-        any(.[]; .name == $zulu and .digest == $zulu_digest)' <<< "$remote" >/dev/null || return 1
+        any(.[]; .name == $runtime and .digest == $runtime_digest)' <<< "$remote" >/dev/null || return 1
 
     for name in SHA256SUMS release.json; do
         id=$(jq -r --arg name "$name" '.[] | select(.name == $name) | .id' <<< "$remote")
@@ -100,7 +102,7 @@ if [[ $release == null ]] || ! verify_remote_assets "$(jq .assets <<< "$release"
         cat > "$state/notes" <<EOF
 $marker
 
-适用于 Apple 芯片 Mac。内置 HMCL $hmcl_version、Azul Zulu $zulu_version（Java $java_version、JavaFX $javafx_version）。
+适用于 Apple 芯片 Mac。内置 HMCL $hmcl_version、$runtime_vendor Liberica Full JRE $runtime_version（Java $java_version、JavaFX $javafx_version）。
 
 应用使用临时签名（ad hoc），尚未经过 Apple 公证。DMG 和 ZIP 中包含相同的应用。
 
