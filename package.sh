@@ -29,7 +29,7 @@ if $release; then
     [[ $runtime_source_url == https://* && $runtime_source_sha256 =~ ^[0-9a-f]{64}$ ]] ||
         fail '公开发布需要在 release.env 中锁定对应的 OpenJDK 和 OpenJFX 源码归档。'
     tagged_commit=$(git -C "$project_dir" rev-parse --verify "refs/tags/$tag^{commit}" 2>/dev/null) ||
-        fail "找不到发布标签 $tag。"
+        fail "找不到发布标签 ${tag}。"
     [[ $commit == "\"$tagged_commit\"" ]] || fail "请从标签 $tag 对应的干净工作区打包。"
 fi
 

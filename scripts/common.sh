@@ -36,15 +36,15 @@ verify_app() {
 
     java_info=$("$java" -XshowSettings:properties -version 2>&1)
     grep -Fxq "    java.vendor = $runtime_vendor" <<< "$java_info" ||
-        fail "内置 Java 供应商应为 $runtime_vendor。"
+        fail "内置 Java 供应商应为 ${runtime_vendor}。"
     grep -Fxq "    java.version = $java_version" <<< "$java_info" ||
-        fail "内置 Java 版本应为 $java_version。"
+        fail "内置 Java 版本应为 ${java_version}。"
     grep -Fxq "    java.runtime.version = $runtime_version-LTS" <<< "$java_info" ||
-        fail "内置 Java 构建应为 $runtime_version。"
+        fail "内置 Java 构建应为 ${runtime_version}。"
     grep -Fxq "javafx.runtime.version=$javafx_version" "$java_home/lib/javafx.properties" ||
-        fail "内置 JavaFX 版本应为 $javafx_version。"
+        fail "内置 JavaFX 版本应为 ${javafx_version}。"
     modules=$("$java" --list-modules)
     for module in javafx.base javafx.controls javafx.fxml javafx.graphics javafx.media javafx.swing javafx.web; do
-        [[ $'\n'$modules == *$'\n'"${module}@"* ]] || fail "内置运行时缺少 $module。"
+        [[ $'\n'$modules == *$'\n'"${module}@"* ]] || fail "内置运行时缺少 ${module}。"
     done
 }

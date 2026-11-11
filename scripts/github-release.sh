@@ -36,7 +36,7 @@ verify_remote_tag() {
     done
     type=$(jq -r .type <<< "$object")
     sha=$(jq -r .sha <<< "$object")
-    [[ $type == commit && $sha == "$commit" ]] || fail "远端标签 $tag 未指向 $commit。"
+    [[ $type == commit && $sha == "$commit" ]] || fail "远端标签 $tag 未指向 ${commit}。"
 }
 
 find_release() {
@@ -102,7 +102,7 @@ if [[ $release == null ]] || ! verify_remote_assets "$(jq .assets <<< "$release"
         cat > "$state/notes" <<EOF
 $marker
 
-适用于 Apple 芯片 Mac。内置 HMCL $hmcl_version、$runtime_vendor Liberica Full JRE $runtime_version（Java $java_version、JavaFX $javafx_version）。
+适用于 Apple 芯片 Mac。内置 HMCL ${hmcl_version}、${runtime_vendor} Liberica Full JRE ${runtime_version}（Java ${java_version}、JavaFX ${javafx_version}）。
 
 应用使用临时签名（ad hoc），尚未经过 Apple 公证。DMG 和 ZIP 中包含相同的应用。
 

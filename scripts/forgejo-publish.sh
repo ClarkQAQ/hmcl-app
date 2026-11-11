@@ -19,7 +19,7 @@ forgejo_auth="Authorization: token $token"
 [[ $github_repo =~ ^[A-Za-z0-9-]+/[A-Za-z0-9_.-]+$ ]] || fail 'GitHub 仓库必须使用 owner/repo 格式。'
 [[ $forgejo_owner =~ ^[A-Za-z0-9_.-]+$ ]] || fail 'Forgejo 软件包所有者无效。'
 for command in git curl jq shasum cmp sort; do
-    command -v "$command" >/dev/null || fail "Forgejo runner 缺少 $command。"
+    command -v "$command" >/dev/null || fail "Forgejo runner 缺少 ${command}。"
 done
 
 project_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -31,7 +31,7 @@ source ./release.env
 [[ $hmcl_source_sha256 =~ ^[0-9a-f]{64}$ && $runtime_source_sha256 =~ ^[0-9a-f]{64}$ ]] ||
     fail 'release.env 必须锁定 HMCL 和 Liberica 源码归档的 SHA-256。'
 version="${hmcl_version}-r${revision}"
-[[ $tag == "v$version" ]] || fail "Forgejo 标签 $tag 与 release.env 不一致，应为 v$version。"
+[[ $tag == "v$version" ]] || fail "Forgejo 标签 $tag 与 release.env 不一致，应为 v${version}。"
 tag_ref="refs/tags/$tag"
 commit=$(git rev-parse HEAD)
 tag_commit=$(git rev-parse --verify "$tag_ref^{commit}")
@@ -73,7 +73,7 @@ while :; do
             fi
             ;;
         404) ;;
-        *) fail "读取 GitHub Release 失败，HTTP $status。" ;;
+        *) fail "读取 GitHub Release 失败，HTTP ${status}。" ;;
     esac
     (( SECONDS < deadline )) || fail "等待 GitHub 发布 $tag 超时。发布完成后可手动重跑。"
     sleep 30
@@ -124,7 +124,7 @@ read_package_files() {
         200) jq -e 'type == "array" and all(.[]; (.sha256 | test("^[0-9a-f]{64}$")))' \
                 package-files.json >/dev/null || fail 'Forgejo 返回的文件摘要无效。' ;;
         404) printf '[]\n' > package-files.json ;;
-        *) fail "读取 Forgejo 软件包文件失败，HTTP $status。" ;;
+        *) fail "读取 Forgejo 软件包文件失败，HTTP ${status}。" ;;
     esac
 }
 
@@ -159,7 +159,7 @@ while read -r expected_hash file; do
             [[ $(package_hash "$file") == "$expected_hash" ]] ||
                 fail "Forgejo 中的 $file 已存在，SHA-256 不一致。"
             ;;
-        *) fail "上传 $file 失败，HTTP $status。" ;;
+        *) fail "上传 $file 失败，HTTP ${status}。" ;;
     esac
 done < calculated-checksums
 

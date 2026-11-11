@@ -21,8 +21,8 @@ open dist/HMCL.app
 
 运行 `./package.sh` 可同时构建和验证 DMG 与 ZIP。当前版本在 `dist/` 生成以下文件。
 
-- `HMCL-macOS-3.16.4-r2-arm64.dmg`
-- `HMCL-macOS-3.16.4-r2-arm64.zip`
+- `HMCL-macOS-3.16.4-r3-arm64.dmg`
+- `HMCL-macOS-3.16.4-r3-arm64.zip`
 - `SHA256SUMS` 和 `release.json`。未使用 Git 或工作区有未提交的改动时，清单中的 `commit` 为 `null`。
 
 脚本从上游官方地址下载 HMCL JAR 和 Liberica 运行时，按 SHA-256 校验后打包。登录账户、下载游戏等 HMCL 功能仍使用各自的在线服务。
@@ -45,9 +45,9 @@ HMCL 的更新检查使用包内的同版本元数据。升级时先退出 HMCL�
 
 在 Forgejo 私有仓库 `gulugulu/hmcl-app` 启用 Actions 和 Packages。将有权向 `gulugulu` 组织发布软件包且具备 `write:package` 权限的个人访问令牌配置为 Actions Secret `HMCL_PACKAGE_TOKEN`。工作流默认使用标记为 `ubuntu-latest` 的 Linux runner，可通过 Actions 变量 `HMCL_PUBLISH_RUNNER` 指定其他标记。runner 需提供 Node.js 20、Bash、`curl`、`jq`、`git` 和 `shasum`。 [Forgejo Generic Package Registry](https://forgejo.org/docs/latest/user/packages/generic/)
 
-1. 将包含工作流和 `release.env` 的 `main` 分别推到 `github` 和 `forgejo-private`。首次推送后确认两端默认分支均为 `main`。在干净工作区运行 `git tag v3.16.4-r2`，为该提交创建首发标签。如需本地验证发布包，在 Apple 芯片 Mac 上运行 `./package.sh --release`。
-2. 先运行 `git push github v3.16.4-r2`。GitHub Actions 构建并校验 DMG、ZIP、`SHA256SUMS`、`release.json`、HMCL 源码包和 Liberica 源码包，全部通过后公开 Release。
-3. 等 GitHub Release 公开后，运行 `git push forgejo-private v3.16.4-r2`。Forgejo 校验提交和附件，将同一批文件镜像到 `gulugulu` 组织下的 `hmcl-app` Generic Package，版本为 `3.16.4-r2`。需要手动补跑时，在 Forgejo Actions 中运行 `Mirror release to Forgejo Packages`，填写 `tag` 为 `v3.16.4-r2`。
+1. 将包含工作流和 `release.env` 的 `main` 分别推到 `github` 和 `forgejo-private`。首次推送后确认两端默认分支均为 `main`。在干净工作区运行 `git tag v3.16.4-r3`，为该提交创建发布标签。如需本地验证发布包，在 Apple 芯片 Mac 上运行 `./package.sh --release`。
+2. 先运行 `git push github v3.16.4-r3`。GitHub Actions 构建并校验 DMG、ZIP、`SHA256SUMS`、`release.json`、HMCL 源码包和 Liberica 源码包，全部通过后公开 Release。
+3. 等 GitHub Release 公开后，运行 `git push forgejo-private v3.16.4-r3`。Forgejo 校验提交和附件，将同一批文件镜像到 `gulugulu` 组织下的 `hmcl-app` Generic Package，版本为 `3.16.4-r3`。需要手动补跑时，在 Forgejo Actions 中运行 `Mirror release to Forgejo Packages`，填写 `tag` 为 `v3.16.4-r3`。
 
 ## 上游与类似项目
 
