@@ -24,6 +24,7 @@ payloads=("$archive.dmg" "$archive.zip" release.json
     "$hmcl_source" "$runtime_source")
 assets=("${payloads[@]}" SHA256SUMS)
 asset_names=$(printf '%s\n' "${assets[@]}" | LC_ALL=C sort)
+read_delays=(0 1 2 4 8 16)
 state=$(mktemp -d)
 trap 'rm -rf -- "$state"' EXIT
 
@@ -43,6 +44,11 @@ find_release() {
     gh api --paginate --slurp "$api/releases?per_page=100" |
         jq --arg tag "$tag" '[.[][] | select(.tag_name == $tag)] |
             if length <= 1 then first // null else error("存在多个同名 Release") end'
+}
+
+draft_id() {
+    jq -er --arg marker "$marker" --arg tag "$tag" '
+        select(.tag_name == $tag and .draft and ((.body // "") | contains($marker))) | .id'
 }
 
 verify_manifest() {
@@ -109,31 +115,44 @@ $marker
 SHA256SUMS 记录应用包、构建信息和对应上游源码压缩包的校验值。
 EOF
         gh release create "$tag" --repo "$repository" --verify-tag --draft \
-            --title "HMCL for macOS $tag" --notes-file "$state/notes"
-        release=$(find_release)
+            --title "HMCL for macOS $tag" --notes-file "$state/notes" "${assets[@]/#/dist/}"
+        # 附件上传完成后，列表接口仍可能暂时查不到新草稿。
+        for delay in "${read_delays[@]}"; do
+            (( delay == 0 )) || sleep "$delay"
+            release=$(find_release)
+            [[ $release == null ]] || break
+        done
+        [[ $release != null ]] || fail "草稿 $tag 暂不可见，请重试工作流。"
+    else
+        release_id=$(draft_id <<< "$release") || fail "Release $tag 已不再是此构建的草稿。"
+        remote=$(jq .assets <<< "$release")
+        [[ -z $(LC_ALL=C comm -23 <(jq -r '.[].name' <<< "$remote" | LC_ALL=C sort) <(printf '%s\n' "$asset_names")) ]] ||
+            fail "草稿 $tag 包含无法识别的附件。"
+
+        for name in "${assets[@]}"; do
+            digest=$(jq -r --arg name "$name" '.[] | select(.name == $name) | .digest' <<< "$remote")
+            local_digest="sha256:$(sha256 "dist/$name")"
+            if [[ $digest == "$local_digest" ]]; then
+                continue
+            fi
+            gh api "$api/releases/$release_id" | draft_id >/dev/null ||
+                fail "Release $tag 已不再是此构建的草稿。"
+            gh release upload "$tag" --repo "$repository" --clobber "dist/$name"
+        done
     fi
-
-    release_id=$(jq -er --arg marker "$marker" \
-        'select(.draft and (.body | contains($marker))) | .id' <<< "$release")
-    remote=$(jq .assets <<< "$release")
-    [[ -z $(LC_ALL=C comm -23 <(jq -r '.[].name' <<< "$remote" | LC_ALL=C sort) <(printf '%s\n' "$asset_names")) ]] ||
-        fail "草稿 $tag 包含无法识别的附件。"
-
-    for name in "${assets[@]}"; do
-        digest=$(jq -r --arg name "$name" '.[] | select(.name == $name) | .digest' <<< "$remote")
-        local_digest="sha256:$(sha256 "dist/$name")"
-        if [[ $digest == "$local_digest" ]]; then
-            continue
-        fi
-        gh api "$api/releases/$release_id" | jq -e --arg marker "$marker" \
-            '.draft and (.body | contains($marker))' >/dev/null || fail "Release $tag 已不再是此构建的草稿。"
-        gh release upload "$tag" --repo "$repository" --clobber "dist/$name"
-    done
 fi
 
-release=$(find_release)
-jq -e --arg marker "$marker" '.draft and (.body | contains($marker))' <<< "$release" >/dev/null ||
-    fail "Release $tag 已不再是此构建的草稿。"
-verify_remote_assets "$(jq .assets <<< "$release")" || fail "草稿 $tag 的附件校验失败。"
-verify_remote_tag
-gh release edit "$tag" --repo "$repository" --verify-tag --draft=false
+release_id=$(draft_id <<< "$release") || fail "Release $tag 已不再是此构建的草稿。"
+for delay in "${read_delays[@]}"; do
+    (( delay == 0 )) || sleep "$delay"
+    if ! release=$(gh api "$api/releases/$release_id"); then
+        continue
+    fi
+    [[ $(draft_id <<< "$release") == "$release_id" ]] || fail "Release $tag 已不再是此构建的草稿。"
+    if verify_remote_assets "$(jq .assets <<< "$release")"; then
+        verify_remote_tag
+        gh release edit "$tag" --repo "$repository" --verify-tag --draft=false
+        exit 0
+    fi
+done
+fail "读取或校验草稿 $tag 的附件失败。"
