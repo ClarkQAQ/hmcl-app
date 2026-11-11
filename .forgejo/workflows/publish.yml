@@ -1,0 +1,44 @@
+name: Mirror release to Forgejo Packages
+
+on:
+  push:
+    tags:
+      - 'v*-r*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: GitHub and Forgejo release tag (vX.Y.Z-rN)
+        required: true
+        type: string
+
+concurrency:
+  group: hmcl-package-${{ inputs.tag || forgejo.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ${{ vars.HMCL_PUBLISH_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 40
+    env:
+      PUBLISH_TAG: ${{ inputs.tag || forgejo.ref_name }}
+    steps:
+      - name: Validate release tag
+        shell: bash
+        run: |
+          if [[ ! $PUBLISH_TAG =~ ^v[0-9]+(\.[0-9]+){2}-r[1-9][0-9]*$ ]]; then
+            printf 'Expected a release tag of the form vX.Y.Z-rN.\n' >&2
+            exit 1
+          fi
+
+      - name: Check out the Forgejo release tag
+        uses: https://data.forgejo.org/actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: refs/tags/${{ env.PUBLISH_TAG }}
+          persist-credentials: false
+
+      - name: Verify and publish GitHub release files
+        shell: bash
+        env:
+          GITHUB_RELEASE_REPO: ${{ vars.HMCL_GITHUB_RELEASE_REPO || 'ClarkQAQ/hmcl-app' }}
+          FORGEJO_PACKAGE_TOKEN: ${{ secrets.HMCL_PACKAGE_TOKEN }}
+        run: bash scripts/forgejo-publish.sh "$PUBLISH_TAG"
